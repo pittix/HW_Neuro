@@ -27,22 +27,6 @@ motion_diff = [diff(data(1).motion,1,1) ; zeros(1,size(data(1).motion,2))];
 idxCSF = find(data(1).explVarCSF>70,1,'first');
 idxWM = find(data(1).explVarWM>50,1,'first');
 
-%matrice per regressione 225*24
-%        1                                  6           6   
-% X= [ones(size(diff(data(1).motion,1),1)),data(1).motion,motion_diff, data(1).CSF(:,[1,idxCSF(1)]),data(1).WM(:,[1,idxWM(1)])];
-betas = cell(numPazienti,size(data(1).ROI,1));
-for paziente = 1:1:numPazienti
-    motion_diff = [diff(data(paziente).motion,1,1) ; zeros(1,size(data(paziente).motion,2))];
-   X=[data(paziente).motion, data(paziente).motion.^2, motion_diff, motion_diff.^2]; 
-   for acq=1:1:size(data(paziente).ROI,1)
-       Y=data(paziente).ROI(acq).tac_filtered;
-       betas{paziente,acq} =  (X'*X)\X'*Y;
-   end
-   
-end
-
-beta;
-
 %spiegazione sogg1 della varianza: ~~ 4 per white; ~~ per CSF
 %indici per la spiegazione della varianza
 explVarWM_idx = zeros(numPazienti,1);
@@ -51,6 +35,20 @@ explVarCSF_idx = zeros(numPazienti,1);
 for paziente =1:1:numPazienti
     explVarWM_idx = find(data(paziente).explVarWM,1,'first');
     explVarCSF_idx = find(data(paziente).explVarCSF,1,'first');
+end
+%matrice per regressione 225*24
+%        1                                  6           6   
+% X= [ones(size(diff(data(1).motion,1),1)),data(1).motion,motion_diff, data(1).CSF(:,[1,idxCSF(1)]),data(1).WM(:,[1,idxWM(1)])];
+betas = cell(numPazienti,1);
+for paziente = 1:1:numPazienti
+    motion_diff = [diff(data(paziente).motion,1,1) ; zeros(1,size(data(paziente).motion,2))];
+   X=[data(paziente).motion, motion_diff, data(paziente).CSF(:,[1,1:explVarCSF_idx(paziente)]), ...
+       ata(paziente).WM(:,[1,1:explVarWM_idx(paziente)])]; 
+   for acq=1:1:size(data(paziente).ROI,1)
+       Y=data(paziente).ROI(acq).tac_filtered;
+       betas{paziente} =  (X'*X)\X'*Y;
+   end
+    % manca stima di parametri dati i beta
 end
 
 %% Task 4
@@ -71,6 +69,19 @@ processed_fMRI = zeros(numROI,numSamplROI,numPazienti);
 
 %% task 5
 %valid volumes?
+
+
+%% task 6
+
+
+%% task 7
+
+
+%% task 8
+
+%% task 9
+
+%% task 10 
 
 
 %% 2 - plot deriva nel tempo

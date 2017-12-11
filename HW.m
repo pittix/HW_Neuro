@@ -4,6 +4,8 @@ FOLDER_NAME = 'A2MB';
 data =load_data(FOLDER_NAME); %1 patient per struct and each struct has the data
 TR=2.6; %s
 numPazienti = size(data,2);
+numROI  = size(data(1).ROI,1);
+numSamplRoi = size(data(1).ROI(1).tac,1);
 %% Load alternativo
 load HW9_data.mat
 
@@ -42,7 +44,30 @@ end
 beta;
 
 %spiegazione sogg1 della varianza: ~~ 4 per white; ~~ per CSF
+%indici per la spiegazione della varianza
+explVarWM_idx = zeros(numPazienti,1);
+explVarCSF_idx = zeros(numPazienti,1);
 
+for paziente =1:1:numPazienti
+    explVarWM_idx = find(data(paziente).explVarWM,1,'first');
+    explVarCSF_idx = find(data(paziente).explVarCSF,1,'first');
+end
+
+%% Task 4
+
+%A2MB20 è il paziente 15
+tmpPaziente = 15;
+ROI_OP=60;
+subplot(1,2,1)
+ plot(data(tmpPaziente).ROI(ROI_OP).tac)
+title('Segnale regredito filtrato')
+
+subplot(1,2,2)
+% plot(plot(data(tmpPaziente).ROI(ROI_OP).tac_filtered))
+title('Segnale regredito non filtrato')
+
+processed_fMRI = zeros(numROI,numSamplROI,numPazienti);
+%devo applicare i beta.....come? :((
 
 %% task 5
 %valid volumes?

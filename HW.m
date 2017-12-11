@@ -1,21 +1,20 @@
 close all; clear all;
 %% DEFINIZIONE COSTANTI e caricamento nomi delle cartelle
 FOLDER_NAME = 'A2MB';
-data=load_data(FOLDER_NAME); %1 patient per struct and each struct has the data
+data =load_data(FOLDER_NAME); %1 patient per struct and each struct has the data
 TR=2.6; %s
-A=data(1).ROI;
 numPazienti = size(data,2);
 %% Load alternativo
 load HW9_data.mat
 
 
-
 %% task 2 - deriva temporale
 
 % filtraggio segnali
+ROIfiltrate = zeros(numPazienti, size(data(1).ROI,2),size(data(1).ROI(1).tac,1));
 for paziente =1:1:numPazienti %per ogni paziente, filtra le ROI
     ROIfiltrate(paziente,:,:) = dataFilter(data(paziente).ROI,'butter'); %check errors
-    [media(paziente),varianza(paziente)] = analisiDeriva(ROIfiltrate(paziente));
+    [media,varianza] = analisiDeriva(squeeze(ROIfiltrate(paziente,:,:)));
 end
 
 
@@ -45,7 +44,7 @@ beta;
 %spiegazione sogg1 della varianza: ~~ 4 per white; ~~ per CSF
 
 
-%% PUNTO 5
+%% task 5
 %valid volumes?
 
 

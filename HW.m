@@ -11,7 +11,7 @@ numSamplRoi = size(data(1).ROI(1).tac,1);
 load HW9_data.mat
 
 
-%% task 2 - deriva temporale
+%% task 2 - deriva temporale -- da sistemare
 
 % filtraggio segnali
 ROIfiltrate = zeros(numPazienti, size(data(1).ROI,2),size(data(1).ROI(1).tac,1));
@@ -49,10 +49,10 @@ for paziente = 1:1:numPazienti
    for acq=1:1:numROI
        Y=data(paziente).ROI(acq).tac_filtered;
        betas{paziente} =  (X'*X)\X'*Y;
-       risultati{paziente,acq}= data(paziente).ROI(acq).tac_filtered - X*betas{paziente};
+       data(paziente).regr(acq,:)= data(paziente).ROI(acq).tac - X*betas{paziente};
+       data(paziente).regrFilt(acq,:)= data(paziente).ROI(acq).tac_filtered - X*betas{paziente};
    end
-    % manca stima di parametri dati i beta
-    
+   
 end
 
 %% Task 4
@@ -61,63 +61,93 @@ end
 tmpPaziente = 15;
 ROI_OP=60;
 subplot(1,2,1)
- plot(data(tmpPaziente).ROI(ROI_OP).tac)
+ plot(data(tmpPaziente).regr(ROI_OP,:))
 title('Segnale regredito filtrato')
 
 subplot(1,2,2)
-% plot(plot(data(tmpPaziente).ROI(ROI_OP).tac_filtered))
+plot(data(tmpPaziente).regrFilt(ROI_OP,:))
 title('Segnale regredito non filtrato')
 
-processed_fMRI = zeros(numROI,numSamplROI,numPazienti);
-%devo applicare i beta.....come? :((
 
 %% task 5
-%valid volumes?
 %Pearson correlation
-pearsCorr(numPazienti,numROI) = struct('FC',0,'FC_parz',0,...
+pearsCorr(numPazienti) = struct('FC',0,'FC_parz',0,...
             'signif',0,'signifParz',0);
 for paziente =1:1:numPazienti
-    
-    for roi=1:1:numROI
-        curROI =data(paziente).ROI(roi).tac_filtered;
-        [FC_paz, signifIDpaz] = corr(curROI);
-        [FC_paz_part,signifIDpaz_part] = partialcorr(curROI);
-        pearsCorr(paziente,roi) = struct('FC',FC_paz,'FC_parz',FC_paz_part,...
-            'signif',signifIDpaz,'signifParz',signifIDpaz_part);
-    
+    curROI = zeros(numROI,numSamplRoi);
+    for roi =1:1:numROI
+        curROI(roi,:)=data(paziente).ROI(roi).tac_filtered;
     end
+    [FC_paz, signifIDpaz] = corr(curROI);
+    [FC_paz_part,signifIDpaz_part] = partialcorr(curROI);
+    pearsCorr(paziente) = struct('FC',FC_paz,'FC_parz',FC_paz_part,...
+        'signif',signifIDpaz,'signifParz',signifIDpaz_part);
+
     
 end
+clear signifIDpaz signifIDpaz_part FC_paz FC_paz_part
 
+%% task6 - copiato
+alpha0=0.05;
+for paziente=1:numPazienti
+    triangl=triu(pearsCorr(paziente).signif);
+    vett_pval=triangl(:);
+    pos_pval=vett_pval>0;
+    vett_pval=vett_pval(pos_pval==1);
+    vett_pval=sort(unique(vett_pval));
+    j=1;
+    temp=(j*alpha0)/length(vett_pval);
+    while vett_pval(j)<temp
+        j=j+1;
+        temp=(j*alpha0)/length(vett_pval);
+    end
+    alpha(paziente)=vett_pval(j);
+end
 
-
-%% task 6 - sogliatura hard con bonferroni
+%% task 6 - sogliatura hard 
 for paziente=1:1:numPazienti
-    for roi = 1:1:numROI
-        %creazione sogliatura
-        
-        pearsCorr(paziente,roi).sogliatura = A;
-    end
+    pearsCorr(paziente).sogliatura = pearsCorr(paziente).signif.*alpha;
+ 
 end
-%% task 7
-subplot(2,2,1)
-nets_hierarchy(pearsCorr(tmpPaziente,roi).FC,pearsCorr(tmpPaziente,roi).FC,0);
 
+%% task 7
+figure(7)
+subplot(2,2,1)
+imagesc(pearsCorr(tmpPaziente).FC)
+colormap jet; colorbar
 subplot(2,2,2)
-plot(pearsCorr(tmpPaziente,roi).signif)
+imagesc(pearsCorr(tmpPaziente).signif)
+colormap jet; colorbar
 
 subplot(2,2,3)
-nets_hierarchy(pearsCorr(tmpPaziente,roi).FC_soglia,pearsCorr(tmpPaziente,roi).FC_parz,0);
+imagesc(pearsCorr(tmpPaziente).FC_parz)
+colormap jet; colorbar
 
 subplot(2,2,4)
-plot(pearsCorr(tmpPaziente,roi).signifParz)
+plot(pearsCorr(tmpPaziente).signifParz)
+colormap jet; colorbar
 
 
 %% task 8
-
+FC_gruppo = zeros(size(pearsCorr(1).FC));
+for paziente = 1:1:numPazienti
+    FC_gruppo = FC_gruppo + pearsCorr(paziente).FC;
+end
+FC_gruppo = FC_gruppo/numPazienti;
+figure(8)
+imagesc(FC_gruppo); colormap jet; colorbar
 %% task 9
+for paz=1:1:numPazienti
+    [pearsCorr(paz).dist]=distance_wei(pearsCorr(tmpPaziente).FC);
+    [pearsCorr(paz).dist_parz]=distance_wei(pearsCorr(tmpPaziente).FC_parz);
+    pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).signif);
+    pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).signifParz);
+    [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(tmpPaziente).FC);
+    [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(tmpPaziente).FC_parz);
+end
 
 %% task 10 
+
 
 
 %% 2 - plot deriva nel tempo

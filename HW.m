@@ -3,8 +3,9 @@ close all; clear all;
 FOLDER_NAME = 'A2MB';
 data =load_data(FOLDER_NAME); %1 patient per struct and each struct has the data
 TR=2.6; %s
+THRES=0.05; %sogliatura per i p-value
 numPazienti = size(data,2);
-numROI  = size(data(1).ROI,1);
+numROI  = size(data(1).ROI,2);
 numSamplRoi = size(data(1).ROI(1).tac,1);
 %% Load alternativo
 load HW9_data.mat
@@ -33,22 +34,25 @@ explVarWM_idx = zeros(numPazienti,1);
 explVarCSF_idx = zeros(numPazienti,1);
 
 for paziente =1:1:numPazienti
-    explVarWM_idx = find(data(paziente).explVarWM,1,'first');
-    explVarCSF_idx = find(data(paziente).explVarCSF,1,'first');
+    explVarWM_idx(paziente) = find(data(paziente).explVarWM,1,'first');
+    explVarCSF_idx(paziente) = find(data(paziente).explVarCSF,1,'first');
 end
 %matrice per regressione 225*24
 %        1                                  6           6   
 % X= [ones(size(diff(data(1).motion,1),1)),data(1).motion,motion_diff, data(1).CSF(:,[1,idxCSF(1)]),data(1).WM(:,[1,idxWM(1)])];
 betas = cell(numPazienti,1);
+risultati = cell(numPazienti,numROI);
 for paziente = 1:1:numPazienti
     motion_diff = [diff(data(paziente).motion,1,1) ; zeros(1,size(data(paziente).motion,2))];
    X=[data(paziente).motion, motion_diff, data(paziente).CSF(:,[1,1:explVarCSF_idx(paziente)]), ...
-       ata(paziente).WM(:,[1,1:explVarWM_idx(paziente)])]; 
-   for acq=1:1:size(data(paziente).ROI,1)
+       data(paziente).WM(:,[1,1:explVarWM_idx(paziente)])]; 
+   for acq=1:1:numROI
        Y=data(paziente).ROI(acq).tac_filtered;
        betas{paziente} =  (X'*X)\X'*Y;
+       risultati{paziente,acq}= data(paziente).ROI(acq).tac_filtered - X*betas{paziente};
    end
     % manca stima di parametri dati i beta
+    
 end
 
 %% Task 4
@@ -69,12 +73,44 @@ processed_fMRI = zeros(numROI,numSamplROI,numPazienti);
 
 %% task 5
 %valid volumes?
+%Pearson correlation
+pearsCorr(numPazienti,numROI) = struct('FC',0,'FC_parz',0,...
+            'signif',0,'signifParz',0);
+for paziente =1:1:numPazienti
+    
+    for roi=1:1:numROI
+        curROI =data(paziente).ROI(roi).tac_filtered;
+        [FC_paz, signifIDpaz] = corr(curROI);
+        [FC_paz_part,signifIDpaz_part] = partialcorr(curROI);
+        pearsCorr(paziente,roi) = struct('FC',FC_paz,'FC_parz',FC_paz_part,...
+            'signif',signifIDpaz,'signifParz',signifIDpaz_part);
+    
+    end
+    
+end
 
 
-%% task 6
 
-
+%% task 6 - sogliatura hard con bonferroni
+for paziente=1:1:numPazienti
+    for roi = 1:1:numROI
+        %creazione sogliatura
+        
+        pearsCorr(paziente,roi).sogliatura = A;
+    end
+end
 %% task 7
+subplot(2,2,1)
+nets_hierarchy(pearsCorr(tmpPaziente,roi).FC,pearsCorr(tmpPaziente,roi).FC,0);
+
+subplot(2,2,2)
+plot(pearsCorr(tmpPaziente,roi).signif)
+
+subplot(2,2,3)
+nets_hierarchy(pearsCorr(tmpPaziente,roi).FC_soglia,pearsCorr(tmpPaziente,roi).FC_parz,0);
+
+subplot(2,2,4)
+plot(pearsCorr(tmpPaziente,roi).signifParz)
 
 
 %% task 8

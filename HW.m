@@ -7,18 +7,28 @@ THRES=0.05; %sogliatura per i p-value
 numPazienti = size(data,2);
 numROI  = size(data(1).ROI,2);
 numSamplRoi = size(data(1).ROI(1).tac,1);
+
 %% Load alternativo
 load HW9_data.mat
-
+TR=2.6; %s
+THRES=0.05; %sogliatura per i p-value
+numPazienti = size(data,2);
+numROI  = size(data(1).ROI,2);
+numSamplRoi = size(data(1).ROI(1).tac,1);
 
 %% task 2 - deriva temporale -- da sistemare
 
 % filtraggio segnali
 ROIfiltrate = zeros(numPazienti, size(data(1).ROI,2),size(data(1).ROI(1).tac,1));
+varianza_thres=5;
 for paziente =1:1:numPazienti %per ogni paziente, filtra le ROI
     ROIfiltrate(paziente,:,:) = dataFilter(data(paziente).ROI,'butter'); %check errors
     [media,varianza] = analisiDeriva(squeeze(ROIfiltrate(paziente,:,:)));
+    if varianza > varianza_thres
+        disp('non vi è deriva temporale lineare')
+    end
 end
+
 
 
 
@@ -73,13 +83,13 @@ title('Segnale regredito non filtrato')
 %Pearson correlation
 pearsCorr(numPazienti) = struct('FC',0,'FC_parz',0,...
             'signif',0,'signifParz',0);
-for paziente =1:1:numPazienti
+parfor paziente =1:1:numPazienti
     curROI = zeros(numROI,numSamplRoi);
     for roi =1:1:numROI
         curROI(roi,:)=data(paziente).ROI(roi).tac_filtered;
     end
     [FC_paz, signifIDpaz] = corr(curROI);
-    [FC_paz_part,signifIDpaz_part] = partialcorr(curROI);
+    [FC_paz_part,signifIDpaz_part] = partialcorr(curROI,curROI);
     pearsCorr(paziente) = struct('FC',FC_paz,'FC_parz',FC_paz_part,...
         'signif',signifIDpaz,'signifParz',signifIDpaz_part);
 
@@ -87,6 +97,14 @@ for paziente =1:1:numPazienti
 end
 clear signifIDpaz signifIDpaz_part FC_paz FC_paz_part
 
+figure(5)
+for paziente =1:1:numPazienti
+   subplot(1,2,1)
+   imagesc(pearsCorr(paziente).FC);colormap jet;colorbar
+   subplot(1,2,2)
+   imagesc(pearsCorr(paziente).FC_parz);colormap jet;colorbar
+   pause(0.2)
+end
 %% task6 - copiato
 alpha0=0.05;
 for paziente=1:numPazienti
@@ -138,25 +156,27 @@ figure(8)
 imagesc(FC_gruppo); colormap jet; colorbar
 %% task 9
 for paz=1:1:numPazienti
-    [pearsCorr(paz).dist]=distance_wei(pearsCorr(tmpPaziente).FC);
-    [pearsCorr(paz).dist_parz]=distance_wei(pearsCorr(tmpPaziente).FC_parz);
-    pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).signif);
-    pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).signifParz);
-    [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(tmpPaziente).FC);
-    [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(tmpPaziente).FC_parz);
+    [pearsCorr(paz).dist]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC)));
+    [pearsCorr(paz).dist_parz]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC_parz)));
+    pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).FC);
+    pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).FC_parz);
+    [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(paz).dist);
+    [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(paz).dist_parz);
 end
 
+figure(9)
+imagesc(pearsCorr(tmpPaziente).dist); colormap jet ; colorbar
 %% task 10 
 
 
 
 %% 2 - plot deriva nel tempo
 figure(1)
-for i=1:1:numFolders
-    curROI =malf_ROI{i}; 
-    for j=1:1:size(malf_ROI{1},1)
-        plot(curROI(j).tac)
-        pause(0.5)
+for i=1:1:numPazienti
+    for j=1:1:numROI
+        curROI =data(i).ROI(j).tac; 
+        plot(curROI)
+        pause(0.1)
         [mean, var] = analisiDeriva(curROI);
     end
 end

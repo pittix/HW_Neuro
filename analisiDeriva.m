@@ -10,12 +10,9 @@ for i=1:1: numSamples
   fitObj= fit(time,  ROI(i,:)','poly1' );
   slope(i) = fitObj.p1;
   intercept(i) = fitObj.p2;
-%   [slope(i),intercept(i)]= [fitObj.p1, fitObj.p2];
-%   fitParabola = fit(  time, ROI(i,:)','poly2' );
 end
 
 media = mean(slope);
 varianza = var(slope);
-% parabola_means = mean(fitParabola);
 end
 

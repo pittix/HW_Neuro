@@ -28,26 +28,24 @@ if( strcmp(tipo,'ellip'))
     % Construct an FDESIGN object and call its ELLIP method.
     h  = fdesign.highpass(Fstop, Fpass, Astop, Apass, Fs);
     Hd = design(h, 'ellip', 'MatchExactly', match);
-    for i=1:1:size(sig,1)
+    parfor i=1:1:size(sig,1)
         filtered(i,:) = filter(Hd,sig(i).tac)';
     end
     
 elseif  strcmp(tipo,'butter') %%use butterworth
     Fs=1/TR;
-    Wp=0.006/(Fs/2);
-    Ws=0.003/(Fs/2);
+    Wp=0.007/(Fs/2);
+    Ws=0.004/(Fs/2);
     Rp=0.5; %dB                   
     Rs=25; %dB
     [ord, Wn]=buttord(Wp,Ws,Rp,Rs);
     [B,A]=butter(ord,Wn,'high');
-    for i=1:1:size(sig,1)
+    parfor i=1:1:size(sig,2)
         filtered(i,:)=filtfilt(B,A,sig(i).tac)';
     end
 else
     err('Il tipo di filtro deve essere o "ellip" o "butter" ');
 end
- % filtered = zeros(size(sig,1),size(sig,1),1);
-
 
 
 end

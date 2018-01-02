@@ -121,7 +121,16 @@ parfor paziente=1:numPazienti
         j=j+1;
         temp=(j*alpha0)/length(vett_pval);
     end
+    disp('pre')
     alpha(paziente)=vett_pval(j);
+    disp('a')
+    mask=pearsCorr(paziente).signif<alpha(paziente);
+    disp('b')
+    pearsCorr(paziente).signifThres=mask .* pearsCorr(paziente).signif;
+    disp('c')
+    pearsCorr(paziente).FCThres=mask .* pearsCorr(paziente).FC;
+    disp('d')
+    disp('--------------------')
 end
 
 %% task 6 - sogliatura hard 
@@ -165,32 +174,59 @@ end
 FC_gruppo = FC_gruppo/numPazienti;
 figure(8)
 imagesc(FC_gruppo); colormap jet; colorbar
+
 %% task 9
-for paz=1:1:numPazienti
-    [pearsCorr(paz).dist]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC)));
-    [pearsCorr(paz).dist_parz]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC_parz)));
-    pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).FC);
-    pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).FC_parz);
-    [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(paz).dist);
-    [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(paz).dist_parz);
+% for paz=1:1:numPazienti
+%     [pearsCorr(paz).dist]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC)));
+%     [pearsCorr(paz).dist_parz]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC_parz)));
+%     pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).FC);
+%     pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).FC_parz);
+%     [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(paz).dist);
+%     [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(paz).dist_parz);
+% end
+
+% for j=1:Ns
+%     inver_abs(:,:,j)=1./FC_corr_thre(:,:,j);
+%     ass(:,:,j)=abs(inver_abs(:,:,j));
+%     [D_abs(:,:,j), B_abs(:,:,j)]=distance_wei(ass(:,:,j));%the input matrix should consequently be some inverse of the connectivity matrix. 
+%     [lambda_abs(j),efficiency_abs(j)]=charpath(D_abs(:,:,j));
+%     E_abs(j)=efficiency_wei(FC_corr_thre(:,:,j));
+% end
+for paziente=1:1:numPazienti
+    mask=pearsCorr(paziente).signifThres>=0;
+    inver_corr=1./(mask.*pearsCorr(paziente).FCThres);
+    [D_corr, B_corr]=distance_wei(inver_corr);
+    [CPL_corr(paziente),efficiency_corr(paziente),~]=charpath(D_corr,0,0);
+    GE_corr(paziente)=efficiency_wei(mask.*pearsCorr(paziente).FCThres);
+
+    mask_parcorr=pearsCorr(paziente).FC_parzThres>=0;
+    inver_parcorr=1./(mask_parcorr.*pearsCorr(paziente).FC_parzThres);
+    [D_parcorr, B_parcorr]=distance_wei(inver_parcorr);
+    [CPL_parcorr(paziente),efficiency_parcorr(paziente),~]=charpath(D_parcorr,0,0);
+    GE_parcorr(paziente)=efficiency_wei(mask_parcorr.*pearsCorr(paziente).FC_parzThres);
 end
-
-figure(9)
-imagesc(pearsCorr(tmpPaziente).dist); colormap jet ; colorbar
-%% task 10 
-
-
-
-%% 2 - plot deriva nel tempo
-figure(1)
-for i=1:1:numPazienti
-    for j=1:1:numROI
-        curROI =data(i).ROI(j).tac; 
-        plot(curROI)
-        pause(0.1)
-        [mean, var] = analisiDeriva(curROI);
-    end
-end
-
-
+ 
+%% Task 10
+ ascissa=[1:1:Ns];
+ figure(10)
+ subplot(4,1,1)
+ hold on
+ plot(ascissa,efficiency_corr,'-o')
+ plot(ascissa,GE_corr,'-o')
+ title('Global efficiency per correlazione')
+ legend('charpath','efficiencywei','Location','NorthEast')
+ hold off
+ subplot(4,1,2)
+ plot(ascissa,CPL_corr,'-om')
+ title('Characteristic path length per correlazione')
+ subplot(4,1,3)
+ hold on
+ plot(ascissa,efficiency_parcorr,'-o')
+ plot(ascissa,GE_parcorr,'-o')
+ title('Global efficiency per correlazione parziale')
+ legend('charpath','efficiencywei','Location','NorthEast')
+ hold off
+ subplot(4,1,4)
+ plot(ascissa,CPL_parcorr,'-om')
+ title('Characteristic path length per correlazione parziale')
 

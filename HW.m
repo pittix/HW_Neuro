@@ -36,8 +36,11 @@ drift = zeros(numSoggetti,numROI);
 for sogg =1:1:numSoggetti %per ogni paziente, filtra le ROI
     ris(sogg).ROIfilt = dataFilter(data(sogg).ROI,'butter'); %check errors
     [drift(sogg,:)] = analisiDeriva(ris(sogg).ROIfilt);
-    drift_medio=mean(abs(drift(:))); %valore assoluto per confrontarli
+    %valore assoluto per confrontarli dato che non è sempre positivo
+    drift_medio=mean(abs(drift(:))); 
     drift_varianza=var(abs(drift(:))); 
+    disp(['varianza del valore assoluto del drift: ',num2str(drift_varianza)])
+    % il drift è circa costante
 
 end
 
@@ -64,7 +67,9 @@ parfor sogg = 1:1:numSoggetti %sceglie il minimo indice
     explVar_idxWM(sogg) = find(data(sogg).explVarWM>ThresWM,1,'first');
     explVar_idxCSF(sogg) = find(data(sogg).explVarCSF>ThresCSF,1,'first');
 end
-
+%calcolo il numero di componenti di gruppo che soddisfano i requisiti:
+% spiegazione di almeno il 50% della varianza per WM
+% spiegazione di almeno il 70% della varianza per CSF
 explVar_idx = round([mean(explVar_idxCSF),mean(explVar_idxWM)]);
 
 parfor sogg = 1:1:numSoggetti
@@ -83,19 +88,44 @@ end
 
 
 
-%% Task 4
+%% Task 4 plot dei risultati del segnale per il soggetto 20
+% A sinistra c'è il gruppo di segnali nel tempo, a destra in frequenza. 
 
 %A2MB20 è il paziente 15
 f3=figure(3);
-set(f3,'Name','Segnali filtrati e regrediti','NumberTitle','off',...
+set(f3,'Name','Segnali filtrati e regrediti e spettri','NumberTitle','off',...
     'units','normalized','outerposition',[0 0 1 1])
+
+axes( 'Position', [0, 0.95, 1, 0.05] ) ;
+set( gca, 'Color', 'None', 'XColor', 'None', 'YColor', 'None' ) ;
+t=text( 0.5, 0,'', 'FontSize', 14', 'FontWeight', 'Bold', ...
+      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
+t.String = 'Segnali filtrati e regrediti. Analisi in tempo e frequenza. Soggetto 20';
+subplot(1,2,1)
+title('Andamento nel tempo')
 hold on
 plot(ris(sogg_rif).regrFilt(ROI_rif,:))
 plot(data(sogg_rif).ROI(ROI_rif).tac)
 plot(ris(sogg_rif).ROIfilt(ROI_rif,:))
-
-legend('filtrato & regredito','originale','filtrato NON regredito')
 hold off
+legend('filtrato & regredito','originale','filtrato NON regredito')
+xlim([0 225])
+
+subplot(1,2,2)
+title('Modulo della risposta in frequenza')
+hold on
+plot(abs(fft(ris(sogg_rif).regrFilt(ROI_rif,:))))
+plot(abs(fft(data(sogg_rif).ROI(ROI_rif).tac)))
+plot(abs(fft(ris(sogg_rif).ROIfilt(ROI_rif,:))))
+legend('filtrato & regredito','originale','filtrato NON regredito')
+xlim([0 225])
+hold off
+
+%creazione matrice come richiesto
+processed_fMRI = zeros(numSamplRoi,numROI,numSoggetti);
+for sogg=1:1:numSoggetti
+   processed_fMRI(:,:,sogg)=ris(sogg).regrFilt'; 
+end
 
 %% task 5 calcolo correlazione e correlazione parziale
 parfor sogg =1:1:numSoggetti
@@ -103,6 +133,7 @@ parfor sogg =1:1:numSoggetti
     [ris(sogg).FC_parz,ris(sogg).signif_parz] = partialcorr(ris(sogg).regrFilt');    
 end
 
+% mostro i risultati in due subplot per confrontare
 f5=figure(5);
 set(f5,'Name','Confronto corr e corr parziale','NumberTitle','off',...
     'units','normalized','outerposition',[0 0 1 1])
@@ -120,8 +151,8 @@ for sogg =1:1:numSoggetti
    title('correlazione parziale')
    pause(0.25)
 end
-%% task6 
-alpha0=0.05;
+%% task6 sogliatura hard utilizzando False Discovery Rate
+alpha0=0.05; %soglia del 5%
 alpha = zeros(numSoggetti,1);
 %correlazione totale
 for sogg=1:1:numSoggetti
@@ -161,7 +192,7 @@ for sogg=1:1:numSoggetti
     ris(sogg).FCThres_parz=mask .* ris(sogg).FC_parz;
 end
 
-%% task 7
+%% task 7 riporto risultati della correlazione
 f7=figure(7);
 set(f7,'Name','confronto correlazioni e p-values ','NumberTitle','off',...
     'units','normalized','outerposition',[0 0 1 1])
@@ -211,49 +242,62 @@ title('Correlazione')
 subplot(1,2,2)
 imagesc(FC_gruppo_parz); colormap jet; colorbar
 title('Correlazione parziale')
-%% task 9
+%% task 9 calcolo GE e CPL usando le funzioni date
 parfor sogg=1:1:numSoggetti
     mask=ris(sogg).signifThres>=0;
     inver_corr=1./(mask.*ris(sogg).FCThres);
-    [D_corr, B_corr]=distance_wei(inver_corr);
+    [D_corr, ~]=distance_wei(inver_corr);
     [ris(sogg).CPL_corr,ris(sogg).eff_corr,~]=charpath(D_corr,0,0);
     ris(sogg).GE_corr=efficiency_wei(mask.*ris(sogg).FCThres);
 
-    mask_parcorr=ris(sogg).FCThres_parz>=0;
-    inver_parcorr=1./(mask_parcorr.*ris(sogg).FCThres_parz);
-    [D_parcorr, B_parcorr]=distance_wei(inver_parcorr);
-    [ris(sogg).CPL_parz,ris(sogg).eff_parz,~]=charpath(D_parcorr,0,0);
-    ris(sogg).GE_parz=efficiency_wei(mask_parcorr.*ris(sogg).FCThres_parz);
+    mask_parz=ris(sogg).FCThres_parz>=0;
+    inver_parz=1./(mask_parz.*ris(sogg).FCThres_parz);
+    [D_parz, ~]=distance_wei(inver_parz);
+    [ris(sogg).CPL_parz,ris(sogg).eff_parz,~]=charpath(D_parz,0,0);
+    ris(sogg).GE_parz=efficiency_wei(mask_parz.*ris(sogg).FCThres_parz);
 end
  
-%% Task 10
- ascissa= 1:1:numSoggetti;
- f10=figure(10);
- set(f10,'NumberTitle','off','Name','Efficienza globale e lunghezza del cammino caratteristico',...
+%calcolo deviazione standard per GE e CPL
+GE_std       = std([ris(1:numSoggetti).GE_corr]);
+GE_parz_std  = std([ris(1:numSoggetti).GE_parz]);
+CPL_std      = std([ris(1:numSoggetti).CPL_corr]);
+CPL_parz_std =std([ris(1:numSoggetti).CPL_parz]);
+
+fprintf('GE e Charpath con correlazione e correlazione parziale')
+fprintf('\n')
+fprintf('\tcorrelazione \t correlazione parziale\n');
+fprintf(['GE: \t',num2str(GE_std),'\t\t',num2str(GE_parz_std),'\n'])
+fprintf(['CPL: \t',num2str(CPL_std),'\t\t\t',num2str(CPL_parz_std),'\n']);
+%% Task 10 confronto risultati tra charpath e GE
+soggetti= 1:1:numSoggetti;
+f10=figure(10);
+set(f10,'NumberTitle','off','Name','Efficienza globale e lunghezza del cammino caratteristico',...
     'units', 'normalized','outerposition',[0 0 1 1])
- subplot(4,1,1)
- hold on
- plot(ascissa,[ris(1:numSoggetti).eff_corr],'-bo')
- plot(ascissa,[ris(1:numSoggetti).GE_corr],'-ro')
- title('Global efficiency per correlazione')
- legend('charpath','efficiencywei','Location','NorthEast')
- hold off
- xlim([0,23])
- subplot(4,1,2)
- plot(ascissa,[ris(1:numSoggetti).CPL_corr],'--om')
- title('Characteristic path length per correlazione')
- xlim([0,23])
- subplot(4,1,3)
- hold on
- plot(ascissa,[ris(1:numSoggetti).eff_parz],'ob-')
- plot(ascissa,[ris(1:numSoggetti).GE_parz],'or-')
- title('Global efficiency per correlazione parziale')
- legend('charpath','efficiencywei','Location','NorthEast')
- hold off
- xlim([0,23])
- subplot(4,1,4)
- plot(ascissa,[ris(1:numSoggetti).CPL_parz],'-om')
- title('Characteristic path length per correlazione parziale')
+subplot(4,1,1)
+hold on
+plot(soggetti,[ris(1:numSoggetti).eff_corr],'-bo')
+plot(soggetti,[ris(1:numSoggetti).GE_corr],'-ro')
+title('Global efficiency per correlazione')
+legend('charpath','efficiencywei','Location','NorthEast')
+hold off
+xlim([0,23])
+subplot(4,1,2)
+plot(soggetti,[ris(1:numSoggetti).CPL_corr],'-or')
+title('Characteristic path length per correlazione')
+xlim([0,23])
+subplot(4,1,3)
+hold on
+plot(soggetti,[ris(1:numSoggetti).eff_parz],'ob-')
+plot(soggetti,[ris(1:numSoggetti).GE_parz],'or-')
+title('Global efficiency per correlazione parziale')
+legend('charpath','efficiencywei','Location','NorthEast')
+hold off
+xlim([0,23])
+subplot(4,1,4)
+plot(soggetti,[ris(1:numSoggetti).CPL_parz],'-or')
+title('Characteristic path length per correlazione parziale')
+xlim([0,23])
+
 
 
 %% Creazione matrici finali per la consegna
@@ -268,9 +312,9 @@ for sogg=1:1:numSoggetti
    FC(:,:,sogg,1)  = ris(sogg).FC; %correlazione
    FC(:,:,sogg,2)  = ris(sogg).FC_parz; %correlazione parziale
     %descrittori per la correlazione
-   DESCR(1,:,sogg) = [ris(sogg).GE_corr,ris(sogg).CPL_corr]; 
+   DESCR(1,:,sogg) = [ris(sogg).eff_corr,ris(sogg).CPL_corr]; 
     %descrittori per la correlazione parziale
-   DESCR(2,:,sogg) = [ris(sogg).GE_parz,ris(sogg).CPL_parz]; 
+   DESCR(2,:,sogg) = [ris(sogg).eff_parz,ris(sogg).CPL_parz]; 
    
 end
  

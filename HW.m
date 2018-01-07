@@ -161,28 +161,6 @@ for sogg=1:1:numSoggetti
     ris(sogg).FCThres_parz=mask .* ris(sogg).FC_parz;
 end
 
-%% task 6 - sogliatura hard - prova 
-alpha0=0.05;
-alpha = zeros(numSoggetti,1);
-pValueSize = size(ris(1).signif,1);
-Q_s = cell(numSoggetti);
-FDR = cell(numSoggetti);
-%FDR perché meno restrittivo del permutation test
-for sogg=1:1:numSoggetti
-    %matrice simmetrica, estraggo una matrice triangolare superiore
-    upTri = triu(ris(sogg).signif) - eye(pValueSize);
-    curAnalisys=upTri(upTri(:)>0);
-    upTri_parz = triu(ris(sogg).signif_parz) - eye(pValueSize);
-    curAnalisys_parz=upTri(upTri_parz(:)>0);
-    
-    if isempty(curAnalisys)
-        break;
-    end
-    [FDR{sogg},Q_s{sogg}] = mafdr(curAnalisys);
-    [FDR_parz{sogg},Q_s_parz{sogg}] = mafdr(curAnalisys);
-
-end
-
 %% task 7
 f7=figure(7);
 set(f7,'Name','confronto correlazioni e p-values ','NumberTitle','off',...
@@ -220,8 +198,8 @@ FC_gruppo_parz = FC_gruppo_parz/numSoggetti;
 
 %plot dei risultati
 f9 = figure(9);
-set(f9,'Name','NumberTitle','off','Connettività funzionale di gruppo',...
-    'units','normalized','outerposition',[0 0 1 1])
+set(f9,'Name','Connettività funzionale di gruppo','NumberTitle','off',...
+        'units','normalized','outerposition',[0 0 1 1])
 axes( 'Position', [0, 0.95, 1, 0.05] ) ;
 set( gca, 'Color', 'None', 'XColor', 'None', 'YColor', 'None' ) ;
 text( 0.5, 0, 'Connettività funzionale di gruppo', 'FontSize', 14', 'FontWeight', 'Bold', ...
@@ -251,8 +229,8 @@ end
 %% Task 10
  ascissa= 1:1:numSoggetti;
  f10=figure(10);
- set(f10,'NumberTitle','off','Name','G.E. e C.P.L','units',...
-     'normalized','outerposition',[0 0 1 1])
+ set(f10,'NumberTitle','off','Name','Efficienza globale e lunghezza del cammino caratteristico',...
+    'units', 'normalized','outerposition',[0 0 1 1])
  subplot(4,1,1)
  hold on
  plot(ascissa,[ris(1:numSoggetti).eff_corr],'-bo')
@@ -278,9 +256,24 @@ end
  title('Characteristic path length per correlazione parziale')
 
 
- %% Creazione matrici finali per la consegna
+%% Creazione matrici finali per la consegna
+  %Richiesta 3a, segnale BOLD filtrato e regredito nella forma 99x225x22
+BOLD  = zeros(numROI,numSamplRoi,numSoggetti);
+  %Richiesta 3b, matrice FC nella forma 99x99x22x2 
+FC    = zeros(numROI,numROI,numSoggetti,2);
+  %Richiesta 3c, matrice descrittori nella forma 2x2x22 
+DESCR =  zeros(2,2,numSoggetti);
+for sogg=1:1:numSoggetti
+   BOLD(:,:,sogg)  = ris(sogg).regrFilt;
+   FC(:,:,sogg,1)  = ris(sogg).FC; %correlazione
+   FC(:,:,sogg,2)  = ris(sogg).FC_parz; %correlazione parziale
+    %descrittori per la correlazione
+   DESCR(1,:,sogg) = [ris(sogg).GE_corr,ris(sogg).CPL_corr]; 
+    %descrittori per la correlazione parziale
+   DESCR(2,:,sogg) = [ris(sogg).GE_parz,ris(sogg).CPL_parz]; 
+   
+end
  
- 
- %salvataggio
- nome_file =  'results_ANDREA_PITTARO.mat'
- save(nome_file,'')
+%salvataggio matrici nel file da consegnare
+nome_file =  'results_ANDREA_PITTARO.mat';
+save(nome_file,'BOLD','FC','DESCR');

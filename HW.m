@@ -35,15 +35,13 @@ varianza_thres=5;
 drift = zeros(numSoggetti,numROI);
 for sogg =1:1:numSoggetti %per ogni paziente, filtra le ROI
     ris(sogg).ROIfilt = dataFilter(data(sogg).ROI,'butter'); %check errors
-    [drift(sogg,:)] = analisiDeriva(ris(sogg).ROIfilt);
-    %valore assoluto per confrontarli dato che non è sempre positivo
-    drift_medio=mean(abs(drift(:))); 
-    drift_varianza=var(abs(drift(:))); 
-    disp(['varianza del valore assoluto del drift: ',num2str(drift_varianza)])
-    % il drift è circa costante
-
+    [drift(sogg,:)] = analisiDeriva(ris(sogg).ROIfilt);   
 end
-
+%valore assoluto per confrontarli dato che non è sempre positivo
+drift_medio=mean(abs(drift(:))); 
+drift_varianza=var(abs(drift(:))); 
+disp(['varianza del valore assoluto del drift: ',num2str(drift_varianza)])
+%il drift è circa costante
 %% test filtri
 f2=figure(2);
 set(f2,'Name','Confronto dati originali e filtrati','NumberTitle','off',...

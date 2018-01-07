@@ -13,93 +13,66 @@ FOLDER_NAME = 'A2MB';
 data =load_data(FOLDER_NAME); %1 patient per struct and each struct has the data
 TR=2.6; %s
 THRES=0.05; %sogliatura per i p-value
-numPazienti = size(data,2);
+numSoggetti = size(data,2);
 numROI  = size(data(1).ROI,2);
 numSamplRoi = size(data(1).ROI(1).tac,1);
 ThresWM = 50; % 50% della varianza spiegata
 ThresCSF = 70;% 70% della varianza spiegata
-%% Load alternativo
-load HW9_data.mat
-TR=2.6; %s
-THRES=0.05; %sogliatura per i p-value
-numPazienti = size(data,2);
-numROI  = size(data(1).ROI,2);
-numSamplRoi = size(data(1).ROI(1).tac,1);
-ThresWM = 50; % 50% della varianza spiegata
-ThresCSF = 70;% 70% della varianza spiegata
-%struct con i risultati
-ris(numPazienti) = struct('beta',0,'derivaM',0,'derivaVar',0,'ROIfilt',0);
+%struct dei risultati. A fine file verranno generate le matrici richieste
+ris(numSoggetti) = struct('beta',0,'ROIfilt',0,'regrFilt',0,'FC',0, ...
+        'FC_parz',0,'signif',0,'signif_parz',0,'sogliatura',0,'CPL_corr',0,...
+        'CPL_parz',0,'GE_corr',0,'GE_parz',0,'eff_corr',0,'eff_parz',0,...
+        'FCThres',0,'FC_parzThres',0,'signifThres',0,'signifThres_parz',0);
+    
+sogg_rif = 15; %soggetto A2MB20
+ROI_rif  = 60; 
 
 %% task 2 - deriva temporale -- da sistemare
 
 % filtraggio segnali
 varianza_thres=5;
-for paziente =1:1:numPazienti %per ogni paziente, filtra le ROI
-    ris(paziente).ROIfilt = dataFilter(data(paziente).ROI,'butter'); %check errors
-%     [ris(paziente).derivaM,ris(paziente).derivaVar] = analisiDeriva(ris(paziente).ROIfilt);
-%     if ris(paziente).derivaVar > varianza_thres
-%         disp('non vi è deriva temporale lineare')
-%     end
-end
+drift = zeros(numSoggetti,numROI);
+for sogg =1:1:numSoggetti %per ogni paziente, filtra le ROI
+    ris(sogg).ROIfilt = dataFilter(data(sogg).ROI,'butter'); %check errors
+    [drift(sogg,:)] = analisiDeriva(ris(sogg).ROIfilt);
+    drift_medio=mean(abs(drift(:))); %valore assoluto per confrontarli
+    drift_varianza=var(abs(drift(:))); 
 
-%% filtro manu Ws=0.004/(Fs/2);
-Fs=1/TR;
-Ws=0.004/(Fs/2);
-Wp=0.007/(Fs/2);
-Rs=0.05;
-Rp=0.95;
-Rp_db=-20*log10(Rp);
-Rs_db=-20*log10(Rs);
-[n,Wn]=buttord(Wp,Ws,Rp_db,Rs_db);
-[b,a]=butter(n,Wn,'high');
-N=512;
-[H,F] = freqz(b,a,N,Fs);
-plot(F,abs(H))
-title('Risposta in frequenza del filtro')
-xlabel('Frequenza [Hz]')
-ylabel('Modulo');
-
-%FILTRAGGIO DATI
-filtromanu = zeros(numROI, numPazienti,225);
-for j=1:numPazienti
-    for i=1:numROI
-        filtromanu(i,j,:)=filtfilt(b,a,data(j).ROI(i).tac);
-    end
 end
 
 %% test filtri
 figure(2)
 hold on 
-plot(data(15).ROI(2).tac )
+plot(data(sogg_rif).ROI(ROI_rif).tac )
 
-plot(data(15).ROI(2).tac_filtered )
+plot(data(sogg_rif).ROI(ROI_rif).tac_filtered )
 
-plot(squeeze(filtromanu(2,15,:) ))
-plot(ris(paziente).ROIfilt(2,:))
-legend('orig data','filtered given','manu','mio')
-
+plot(ris(sogg_rif).ROIfilt(ROI_rif,:))
+legend('dati originali','dati filtrati dati','dati filtrati')
+hold off
 %% task 3
 %indici per la spiegazione della varianza
-explVar_idxCSF = zeros(numPazienti,1);
-explVar_idxWM = zeros(numPazienti,1);
+explVar_idxCSF = zeros(numSoggetti,1);
+explVar_idxWM = zeros(numSoggetti,1);
 numRowCSF=size(data(1).CSF,1);
-parfor paziente = 1:1:numPazienti %sceglie il minimo indice 
-    explVar_idxWM(paziente) = find(data(paziente).explVarWM>ThresWM,1,'first');
-    explVar_idxCSF(paziente) = find(data(paziente).explVarCSF>ThresCSF,1,'first');
+parfor sogg = 1:1:numSoggetti %sceglie il minimo indice 
+    explVar_idxWM(sogg) = find(data(sogg).explVarWM>ThresWM,1,'first');
+    explVar_idxCSF(sogg) = find(data(sogg).explVarCSF>ThresCSF,1,'first');
 end
 
 explVar_idx = round([mean(explVar_idxCSF),mean(explVar_idxWM)]);
 
-for paziente = 1:1:numPazienti
-    motion_diff = [diff(data(paziente).motion,1,1) ; zeros(1,size(data(paziente).motion,2))];
-     X=[data(paziente).motion, motion_diff, data(paziente).CSF(:,1:explVar_idx(1)),...
-         data(paziente).WM(:,1:explVar_idx(2))]; 
-     ris(paziente).beta = zeros(35,numROI);  
-   for acq=1:1:numROI
-       Y=ris(paziente).ROIfilt(acq,:)';
-       ris(paziente).beta(:,acq)= (X'*X)\X'*Y;
-       model = X*ris(paziente).beta(:,acq);
-       data(paziente).regrFilt(acq,:)= ris(paziente).ROIfilt(acq,:) - model';
+parfor sogg = 1:1:numSoggetti
+    motion_diff = [diff(data(sogg).motion,1,1) ; zeros(1,size(data(sogg).motion,2))];
+    X=[data(sogg).motion, motion_diff, data(sogg).CSF(:,1:explVar_idx(1)),...
+         data(sogg).WM(:,1:explVar_idx(2))]; 
+     ris(sogg).beta = zeros(35,numROI);  
+     ris(sogg).regrFilt = zeros(numROI,225);  
+   for roi=1:1:numROI
+       Y=ris(sogg).ROIfilt(roi,:)';
+       ris(sogg).beta(:,roi)= (X'*X)\X'*Y;
+       model = X*ris(sogg).beta(:,roi);
+       ris(sogg).regrFilt(roi,:) = ris(sogg).ROIfilt(roi,:) - model';
    end  
 end
 
@@ -108,56 +81,47 @@ end
 %% Task 4
 
 %A2MB20 è il paziente 15
-tmpPaziente = 15;
-ROI_OP=60;
 figure(4)
 subplot(1,2,1)
-plot(data(tmpPaziente).ROI(ROI_OP).tac)
+plot(data(sogg_rif).ROI(ROI_rif).tac)
 title('Segnale regredito non filtrato')
 
 subplot(1,2,2)
-plot(data(tmpPaziente).regrFilt(ROI_OP,:))
+plot(ris(sogg_rif).regrFilt(ROI_rif,:))
 title('Segnale regredito filtrato')
 hold on 
-plot(data(tmpPaziente).ROI(ROI_OP).tac)
+plot(data(tmpPaziente).ROI(ROI_rif).tac)
 
 figure(3)
 hold on
-plot(data(tmpPaziente).regrFilt(ROI_OP,:))
-plot(data(tmpPaziente).ROI(ROI_OP).tac)
-plot(ris(tmpPaziente).ROIfilt(ROI_OP,:))
+plot(ris(sogg_rif).regrFilt(ROI_rif,:))
+plot(data(sogg_rif).ROI(ROI_rif).tac)
+plot(ris(sogg_rif).ROIfilt(ROI_rif,:))
 
 legend('filtr&regr','orig','filtr NO regr')
 hold off
 
-%% task 5
-%Pearson correlation
-pearsCorr(numPazienti) = struct('FC',0,'FC_parz',0,...
-            'signif',0,'signifParz',0,'sogliatura',0);
-parfor paziente =1:1:numPazienti
-    [FC_paz, signifIDpaz] = corr(data(paziente).regrFilt');
-    [FC_paz_part,signifIDpaz_part] = partialcorr(data(paziente).regrFilt');
-    pearsCorr(paziente) = struct('FC',FC_paz,'FC_parz',FC_paz_part,...
-        'signif',signifIDpaz,'signifParz',signifIDpaz_part,'sogliatura',0);
-
-    
+%% task 5 calcolo correlazione e correlazione parziale
+parfor sogg =1:1:numSoggetti
+    [ris(sogg).FC, ris(sogg).signif] = corr(ris(sogg).regrFilt');
+    [ris(sogg).FC_parz,ris(sogg).signif_parz] = partialcorr(ris(sogg).regrFilt');    
 end
-clear signifIDpaz signifIDpaz_part FC_paz FC_paz_part
 
 figure(5)
-for paziente =1:1:numPazienti
+for sogg =1:1:numSoggetti
    subplot(1,2,1)
-   imagesc(pearsCorr(paziente).FC);colormap jet;colorbar
+   imagesc(ris(sogg).FC);colormap jet;colorbar
    subplot(1,2,2)
-   imagesc(pearsCorr(paziente).FC_parz);colormap jet;colorbar
+   imagesc(ris(sogg).FC_parz);colormap jet;colorbar
    pause(0.2)
 end
-%% task6 - copiato
+%% task6 
 alpha0=0.05;
-alpha = zeros(numPazienti,1);
-parfor paziente=1:1:numPazienti
-    triangl=triu(pearsCorr(paziente).signif);
-    vett_pval=triangl(:);
+alpha = zeros(numSoggetti,1);
+%correlazione totale
+for sogg=1:1:numSoggetti
+    tri=triu(ris(sogg).signif);
+    vett_pval=tri(:);
     pos_pval=vett_pval>0;
     vett_pval=vett_pval(pos_pval==1);
     vett_pval=sort(unique(vett_pval));
@@ -167,135 +131,119 @@ parfor paziente=1:1:numPazienti
         j=j+1;
         temp=(j*alpha0)/length(vett_pval);
     end
-    disp('pre')
-    alpha(paziente)=vett_pval(j);
-    disp('a')
-    mask=pearsCorr(paziente).signif<alpha(paziente);
-    disp('b')
-    pearsCorr(paziente).signifThres=mask .* pearsCorr(paziente).signif;
-    disp('c')
-    pearsCorr(paziente).FCThres=mask .* pearsCorr(paziente).FC;
-    disp('d')
-    disp('--------------------')
+    alpha(sogg)=vett_pval(j);
+    mask=ris(sogg).signif<alpha(sogg);
+    ris(sogg).signifThres=mask .* ris(sogg).signif;
+    ris(sogg).FCThres=mask .* ris(sogg).FC;
+end
+alpha_parz = zeros(numSoggetti,1);
+%correlazione totale
+for sogg=1:1:numSoggetti
+    tri=triu(ris(sogg).signif_parz);
+    vett_pval=tri(:);
+    pos_pval=vett_pval>0;
+    vett_pval=vett_pval(pos_pval==1);
+    vett_pval=sort(unique(vett_pval));
+    j=1;
+    temp=(j*alpha0)/length(vett_pval);
+    while vett_pval(j)<temp 
+        j=j+1;
+        temp=(j*alpha0)/length(vett_pval);
+    end
+    alpha_parz(sogg)=vett_pval(j);
+    mask=ris(sogg).signif_parz<alpha(sogg);
+    ris(sogg).signifThres_parz=mask .* ris(sogg).signif_parz;
+    ris(sogg).FCThres_parz=mask .* ris(sogg).FC_parz;
 end
 
-%% task 6 - sogliatura hard 
+%% task 6 - sogliatura hard - prova 
 alpha0=0.05;
-alpha = zeros(numPazienti,1);
-pValueSize = size(pearsCorr(1).signif,1);
-Q_s = cell(numPazienti);
-FDR = cell(numPazienti);
+alpha = zeros(numSoggetti,1);
+pValueSize = size(ris(1).signif,1);
+Q_s = cell(numSoggetti);
+FDR = cell(numSoggetti);
 %FDR perché meno restrittivo del permutation test
-for paziente=1:1:numPazienti
-%     %matrice simmetrica, estraggo una matrice triangolare superiore
-    upTri = triu(pearsCorr(paziente).signif) - eye(pValueSize);
+for sogg=1:1:numSoggetti
+    %matrice simmetrica, estraggo una matrice triangolare superiore
+    upTri = triu(ris(sogg).signif) - eye(pValueSize);
     curAnalisys=upTri(upTri(:)>0);
+    upTri_parz = triu(ris(sogg).signif_parz) - eye(pValueSize);
+    curAnalisys_parz=upTri(upTri_parz(:)>0);
+    
     if isempty(curAnalisys)
         break;
     end
-    [FDR{paziente},Q_s{paziente}] = mafdr(curAnalisys);
+    [FDR{sogg},Q_s{sogg}] = mafdr(curAnalisys);
+    [FDR_parz{sogg},Q_s_parz{sogg}] = mafdr(curAnalisys);
 
 end
 
 %% task 7
 figure(7)
 suptitle('Matrici FC per il soggetto 20')
-tmpPaziente=12;
 
 subplot(2,2,1)
-imagesc(pearsCorr(tmpPaziente).FC); colormap jet; colorbar
+imagesc(ris(sogg_rif).FC); colormap jet; colorbar
 title('matrice FC corr')
 
 subplot(2,2,2)
-imagesc(pearsCorr(tmpPaziente).signif); colormap jet; colorbar
+imagesc(ris(sogg_rif).signif); colormap jet; colorbar
 title('matrice p-values corr')
 
 subplot(2,2,3)
-imagesc(pearsCorr(tmpPaziente).FC_parz); colormap jet; colorbar
+imagesc(ris(sogg_rif).FC_parz); colormap jet; colorbar
 title('matrice FC corr parziale')
 
 subplot(2,2,4)
-imagesc(pearsCorr(tmpPaziente).signifParz); colormap jet; colorbar
+imagesc(ris(sogg_rif).signif_parz); colormap jet; colorbar
 title('matrice p-values  corr parziale')
 
 %% task 8
-FC_gruppo = zeros(size(pearsCorr(1).FC));
-for paziente = 1:1:numPazienti
-    FC_gruppo = FC_gruppo + pearsCorr(paziente).FC;
+FC_gruppo = zeros(size(ris(1).FC));
+for sogg = 1:1:numSoggetti
+    FC_gruppo = FC_gruppo + ris(sogg).FC;
 end
-FC_gruppo = FC_gruppo/numPazienti;
+FC_gruppo = FC_gruppo/numSoggetti;
 figure(8)
 imagesc(FC_gruppo); colormap jet; colorbar
 
-%% task 9
-parfor paz=1:1:numPazienti
-    posCorr =  pearsCorr(paz).signif(pearsCorr(paz).signif>=0);
-    [pearsCorr(paz).dist]=distance_wei(posCorr);
-%     [pearsCorr(paz).dist_parz]=abs(distance_wei(posCorr));
-    pearsCorr(paz).ge = efficiency_wei(pearsCorr(paz).dist);
-%     pearsCorr(paz).ge_parz = efficiency_wei(pearsCorr(paz).FC_parz);
-    [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(paz).dist);
-%     [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(paz).dist_parz);
-end
-
-figure(9)
-imagesc(pearsCorr(tmpPaziente).dist); colormap jet ; colorbar
-%% task 10 
-
-
 
 %% task 9
-% for paz=1:1:numPazienti
-%     [pearsCorr(paz).dist]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC)));
-%     [pearsCorr(paz).dist_parz]=abs(distance_wei(inv(pearsCorr(tmpPaziente).FC_parz)));
-%     pearsCorr(paz).ge = efficiency_wei(dist.*pearsCorr(tmpPaziente).FC);
-%     pearsCorr(paz).ge_parz = efficiency_wei(dist_parz.*pearsCorr(tmpPaziente).FC_parz);
-%     [pearsCorr(paz).lambda,pearsCorr(paz).efficiency] = charpath(pearsCorr(paz).dist);
-%     [pearsCorr(paz).lambda_parz,pearsCorr(paz).efficiency_parz] = charpath(pearsCorr(paz).dist_parz);
-% end
-
-% for j=1:Ns
-%     inver_abs(:,:,j)=1./FC_corr_thre(:,:,j);
-%     ass(:,:,j)=abs(inver_abs(:,:,j));
-%     [D_abs(:,:,j), B_abs(:,:,j)]=distance_wei(ass(:,:,j));%the input matrix should consequently be some inverse of the connectivity matrix. 
-%     [lambda_abs(j),efficiency_abs(j)]=charpath(D_abs(:,:,j));
-%     E_abs(j)=efficiency_wei(FC_corr_thre(:,:,j));
-% end
-for paziente=1:1:numPazienti
-    mask=pearsCorr(paziente).signifThres>=0;
-    inver_corr=1./(mask.*pearsCorr(paziente).FCThres);
+for sogg=1:1:numSoggetti
+    mask=ris(sogg).signifThres>=0;
+    inver_corr=1./(mask.*ris(sogg).FCThres);
     [D_corr, B_corr]=distance_wei(inver_corr);
-    [CPL_corr(paziente),efficiency_corr(paziente),~]=charpath(D_corr,0,0);
-    GE_corr(paziente)=efficiency_wei(mask.*pearsCorr(paziente).FCThres);
+    [ris(sogg).CPL_corr,ris(sogg).eff,~]=charpath(D_corr,0,0);
+    ris(sogg).GE_corr=efficiency_wei(mask.*ris(sogg).FCThres);
 
-    mask_parcorr=pearsCorr(paziente).FC_parzThres>=0;
-    inver_parcorr=1./(mask_parcorr.*pearsCorr(paziente).FC_parzThres);
+    mask_parcorr=ris(sogg).FCThres_parz>=0;
+    inver_parcorr=1./(mask_parcorr.*ris(sogg).FCThres_parz);
     [D_parcorr, B_parcorr]=distance_wei(inver_parcorr);
-    [CPL_parcorr(paziente),efficiency_parcorr(paziente),~]=charpath(D_parcorr,0,0);
-    GE_parcorr(paziente)=efficiency_wei(mask_parcorr.*pearsCorr(paziente).FC_parzThres);
+    [ris(sogg).CPL_parz,ris(sogg).eff_parz,~]=charpath(D_parcorr,0,0);
+    ris(sogg).GE_parz(sogg)=efficiency_wei(mask_parcorr.*ris(sogg).FCThres_parz);
 end
  
 %% Task 10
- ascissa=[1:1:Ns];
+ ascissa= 1:1:numSoggetti;
  figure(10)
  subplot(4,1,1)
  hold on
- plot(ascissa,efficiency_corr,'-o')
- plot(ascissa,GE_corr,'-o')
+ plot(ascissa,ris(sogg_rif).eff,'-o')
+ plot(ascissa,ris(sogg_rif).GE_corr,'-o')
  title('Global efficiency per correlazione')
  legend('charpath','efficiencywei','Location','NorthEast')
  hold off
  subplot(4,1,2)
- plot(ascissa,CPL_corr,'-om')
+ plot(ascissa,ris(sogg_rif).CPL_corr,'-om')
  title('Characteristic path length per correlazione')
  subplot(4,1,3)
  hold on
- plot(ascissa,efficiency_parcorr,'-o')
- plot(ascissa,GE_parcorr,'-o')
+ plot(ascissa,ris(sogg_rif).eff_parz,'-o')
+ plot(ascissa,ris(sogg_rif).GE_parz,'-o')
  title('Global efficiency per correlazione parziale')
  legend('charpath','efficiencywei','Location','NorthEast')
  hold off
  subplot(4,1,4)
- plot(ascissa,CPL_parcorr,'-om')
+ plot(ascissa,ris(sogg_rif).CPL_parz,'-om')
  title('Characteristic path length per correlazione parziale')
 

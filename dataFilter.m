@@ -28,18 +28,25 @@ if( strcmp(tipo,'ellip'))
     % Construct an FDESIGN object and call its ELLIP method.
     h  = fdesign.highpass(Fstop, Fpass, Astop, Apass, Fs);
     Hd = design(h, 'ellip', 'MatchExactly', match);
+    %sfrutto tutti i thread del processore per filtrare in parallelo
     parfor i=1:1:size(sig,1)
         filtered(i,:) = filter(Hd,sig(i).tac)';
     end
     
 elseif  strcmp(tipo,'butter') %%use butterworth
+    %parametri del filtro
     Fs=1/TR;
     Wp=0.007/(Fs/2);
     Ws=0.004/(Fs/2);
-    Rp=0.5; %dB                   
-    Rs=25; %dB
-    [ord, Wn]=buttord(Wp,Ws,Rp,Rs);
+    Rs=0.05;
+    Rp=0.95;
+    Rp_db=-20*log10(Rp);
+    Rs_db=-20*log10(Rs);
+    %calcolo ordine del filtro
+    [ord, Wn]=buttord(Wp,Ws,Rp_db,Rs_db);
+    %creazione del passa alto di ordine calcolato 
     [B,A]=butter(ord,Wn,'high');
+    %sfrutto tutti i thread del processore per filtrare in parallelo
     parfor i=1:1:size(sig,2)
         filtered(i,:)=filtfilt(B,A,sig(i).tac)';
     end

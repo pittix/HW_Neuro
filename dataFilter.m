@@ -32,6 +32,10 @@ if( strcmp(tipo,'ellip'))
     parfor i=1:1:size(sig,1)
         filtered(i,:) = filter(Hd,sig(i).tac)';
     end
+    fig_funzione = figure(111);
+    fvtool(Hd)
+    set(fig_funzione,'Name','spettro del filtro','NumberTitle','off',...
+        'units','normalized','outerposition',[0 0 1 1])
     
 elseif  strcmp(tipo,'butter') %%use butterworth
     %parametri del filtro
@@ -50,9 +54,15 @@ elseif  strcmp(tipo,'butter') %%use butterworth
     parfor i=1:1:size(sig,2)
         filtered(i,:)=filtfilt(B,A,sig(i).tac)';
     end
+    fig_funzione = figure(111);
+    freqz(B,A);
+    set(fig_funzione,'Name','spettro del filtro','NumberTitle','off',...
+        'units','normalized','outerposition',[0 0 1 1])
+
 else
     err('Il tipo di filtro deve essere o "ellip" o "butter" ');
 end
+
 
 
 end

@@ -4,7 +4,7 @@
 % Lo script è suddiviso in sezioni, una per ogni richiesta di conti e, nel
 % caso vi fossero parti di codice importanti che venivano ripetute, è stata
 % creata una funzione. Si è adottato il parfor invece che il for ove
-% possibile per far eseguire i calcoli a tutti i cor di cui il processore è
+% possibile per far eseguire i calcoli a tutti i core di cui il processore è
 % dotato in parallelo, riducendo il tempo di calcolo di circa un 30%
 
 close all; clear all;
@@ -18,6 +18,7 @@ numROI  = size(data(1).ROI,2);
 numSamplRoi = size(data(1).ROI(1).tac,1);
 ThresWM = 50; % 50% della varianza spiegata
 ThresCSF = 70;% 70% della varianza spiegata
+time = TR * (1:numSamplRoi);
 %struct dei risultati. A fine file verranno generate le matrici richieste
 ris(numSoggetti) = struct('beta',0,'ROIfilt',0,'regrFilt',0,'FC',0, ...
         'FC_parz',0,'signif',0,'signif_parz',0,'sogliatura',0,'CPL_corr',0,...
@@ -41,15 +42,19 @@ for sogg =1:1:numSoggetti %per ogni paziente, filtra le ROI
 end
 
 %% test filtri
-figure(2)
+f2=figure(2);
+set(f2,'Name','Confronto dati originali e filtrati','NumberTitle','off',...
+    'units','normalized','outerposition',[0 0 1 1])
 hold on 
-plot(data(sogg_rif).ROI(ROI_rif).tac )
+plot(time,data(sogg_rif).ROI(ROI_rif).tac )
 
-plot(data(sogg_rif).ROI(ROI_rif).tac_filtered )
+plot(time,data(sogg_rif).ROI(ROI_rif).tac_filtered )
 
-plot(ris(sogg_rif).ROIfilt(ROI_rif,:))
-legend('dati originali','dati filtrati dati','dati filtrati')
+plot(time,ris(sogg_rif).ROIfilt(ROI_rif,:))
+legend('dati originali','dati filtrati forniti','dati filtrati')
 hold off
+title('Confronto segnali pre e post filtraggio')
+xlabel('tempo')
 %% task 3
 %indici per la spiegazione della varianza
 explVar_idxCSF = zeros(numSoggetti,1);
@@ -81,24 +86,15 @@ end
 %% Task 4
 
 %A2MB20 è il paziente 15
-figure(4)
-subplot(1,2,1)
-plot(data(sogg_rif).ROI(ROI_rif).tac)
-title('Segnale regredito non filtrato')
-
-subplot(1,2,2)
-plot(ris(sogg_rif).regrFilt(ROI_rif,:))
-title('Segnale regredito filtrato')
-hold on 
-plot(data(tmpPaziente).ROI(ROI_rif).tac)
-
-figure(3)
+f3=figure(3);
+set(f3,'Name','Segnali filtrati e regrediti','NumberTitle','off',...
+    'units','normalized','outerposition',[0 0 1 1])
 hold on
 plot(ris(sogg_rif).regrFilt(ROI_rif,:))
 plot(data(sogg_rif).ROI(ROI_rif).tac)
 plot(ris(sogg_rif).ROIfilt(ROI_rif,:))
 
-legend('filtr&regr','orig','filtr NO regr')
+legend('filtrato & regredito','originale','filtrato NON regredito')
 hold off
 
 %% task 5 calcolo correlazione e correlazione parziale
@@ -107,13 +103,22 @@ parfor sogg =1:1:numSoggetti
     [ris(sogg).FC_parz,ris(sogg).signif_parz] = partialcorr(ris(sogg).regrFilt');    
 end
 
-figure(5)
+f5=figure(5);
+set(f5,'Name','Confronto corr e corr parziale','NumberTitle','off',...
+    'units','normalized','outerposition',[0 0 1 1])
+axes( 'Position', [0, 0.95, 1, 0.05] ) ;
+set( gca, 'Color', 'None', 'XColor', 'None', 'YColor', 'None' ) ;
+t=text( 0.5, 0,'', 'FontSize', 14', 'FontWeight', 'Bold', ...
+      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
 for sogg =1:1:numSoggetti
+   set(t,'String',['Connettività funzionale soggetto ',num2str(sogg)]);
    subplot(1,2,1)
    imagesc(ris(sogg).FC);colormap jet;colorbar
+   title('correlazione')
    subplot(1,2,2)
    imagesc(ris(sogg).FC_parz);colormap jet;colorbar
-   pause(0.2)
+   title('correlazione parziale')
+   pause(0.25)
 end
 %% task6 
 alpha0=0.05;
@@ -179,8 +184,13 @@ for sogg=1:1:numSoggetti
 end
 
 %% task 7
-figure(7)
-suptitle('Matrici FC per il soggetto 20')
+f7=figure(7);
+set(f7,'Name','confronto correlazioni e p-values ','NumberTitle','off',...
+    'units','normalized','outerposition',[0 0 1 1])
+axes( 'Position', [0, 0.95, 1, 0.05] ) ;
+set( gca, 'Color', 'None', 'XColor', 'None', 'YColor', 'None' ) ;
+text( 0.5, 0, 'Matrici FC per il soggetto 20', 'FontSize', 14', 'FontWeight', 'Bold', ...
+      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
 
 subplot(2,2,1)
 imagesc(ris(sogg_rif).FC); colormap jet; colorbar
@@ -198,52 +208,79 @@ subplot(2,2,4)
 imagesc(ris(sogg_rif).signif_parz); colormap jet; colorbar
 title('matrice p-values  corr parziale')
 
-%% task 8
+%% task 8 media dei dati per ottenere la matrice di connettività di gruppo
 FC_gruppo = zeros(size(ris(1).FC));
+FC_gruppo_parz = zeros(size(ris(1).FC_parz));
 for sogg = 1:1:numSoggetti
     FC_gruppo = FC_gruppo + ris(sogg).FC;
+    FC_gruppo_parz = FC_gruppo_parz + ris(sogg).FC_parz;
 end
 FC_gruppo = FC_gruppo/numSoggetti;
-figure(8)
+FC_gruppo_parz = FC_gruppo_parz/numSoggetti;
+
+%plot dei risultati
+f9 = figure(9);
+set(f9,'Name','NumberTitle','off','Connettività funzionale di gruppo',...
+    'units','normalized','outerposition',[0 0 1 1])
+axes( 'Position', [0, 0.95, 1, 0.05] ) ;
+set( gca, 'Color', 'None', 'XColor', 'None', 'YColor', 'None' ) ;
+text( 0.5, 0, 'Connettività funzionale di gruppo', 'FontSize', 14', 'FontWeight', 'Bold', ...
+      'HorizontalAlignment', 'Center', 'VerticalAlignment', 'Bottom' ) ;
+
+subplot(1,2,1)
 imagesc(FC_gruppo); colormap jet; colorbar
-
-
+title('Correlazione')
+subplot(1,2,2)
+imagesc(FC_gruppo_parz); colormap jet; colorbar
+title('Correlazione parziale')
 %% task 9
-for sogg=1:1:numSoggetti
+parfor sogg=1:1:numSoggetti
     mask=ris(sogg).signifThres>=0;
     inver_corr=1./(mask.*ris(sogg).FCThres);
     [D_corr, B_corr]=distance_wei(inver_corr);
-    [ris(sogg).CPL_corr,ris(sogg).eff,~]=charpath(D_corr,0,0);
+    [ris(sogg).CPL_corr,ris(sogg).eff_corr,~]=charpath(D_corr,0,0);
     ris(sogg).GE_corr=efficiency_wei(mask.*ris(sogg).FCThres);
 
     mask_parcorr=ris(sogg).FCThres_parz>=0;
     inver_parcorr=1./(mask_parcorr.*ris(sogg).FCThres_parz);
     [D_parcorr, B_parcorr]=distance_wei(inver_parcorr);
     [ris(sogg).CPL_parz,ris(sogg).eff_parz,~]=charpath(D_parcorr,0,0);
-    ris(sogg).GE_parz(sogg)=efficiency_wei(mask_parcorr.*ris(sogg).FCThres_parz);
+    ris(sogg).GE_parz=efficiency_wei(mask_parcorr.*ris(sogg).FCThres_parz);
 end
  
 %% Task 10
  ascissa= 1:1:numSoggetti;
- figure(10)
+ f10=figure(10);
+ set(f10,'NumberTitle','off','Name','G.E. e C.P.L','units',...
+     'normalized','outerposition',[0 0 1 1])
  subplot(4,1,1)
  hold on
- plot(ascissa,ris(sogg_rif).eff,'-o')
- plot(ascissa,ris(sogg_rif).GE_corr,'-o')
+ plot(ascissa,[ris(1:numSoggetti).eff_corr],'-bo')
+ plot(ascissa,[ris(1:numSoggetti).GE_corr],'-ro')
  title('Global efficiency per correlazione')
  legend('charpath','efficiencywei','Location','NorthEast')
  hold off
+ xlim([0,23])
  subplot(4,1,2)
- plot(ascissa,ris(sogg_rif).CPL_corr,'-om')
+ plot(ascissa,[ris(1:numSoggetti).CPL_corr],'--om')
  title('Characteristic path length per correlazione')
+ xlim([0,23])
  subplot(4,1,3)
  hold on
- plot(ascissa,ris(sogg_rif).eff_parz,'-o')
- plot(ascissa,ris(sogg_rif).GE_parz,'-o')
+ plot(ascissa,[ris(1:numSoggetti).eff_parz],'ob-')
+ plot(ascissa,[ris(1:numSoggetti).GE_parz],'or-')
  title('Global efficiency per correlazione parziale')
  legend('charpath','efficiencywei','Location','NorthEast')
  hold off
+ xlim([0,23])
  subplot(4,1,4)
- plot(ascissa,ris(sogg_rif).CPL_parz,'-om')
+ plot(ascissa,[ris(1:numSoggetti).CPL_parz],'-om')
  title('Characteristic path length per correlazione parziale')
 
+
+ %% Creazione matrici finali per la consegna
+ 
+ 
+ %salvataggio
+ nome_file =  'results_ANDREA_PITTARO.mat'
+ save(nome_file,'')

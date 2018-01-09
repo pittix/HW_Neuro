@@ -71,10 +71,10 @@ end
 explVar_idx = round([mean(explVar_idxCSF),mean(explVar_idxWM)]);
 
 parfor sogg = 1:1:numSoggetti
-    motion_diff = [diff(data(sogg).motion,1,1) ; zeros(1,size(data(sogg).motion,2))];
+    motion_diff = [zeros(1,size(data(sogg).motion,2)); diff(data(sogg).motion)];
     X=[data(sogg).motion, motion_diff, data(sogg).CSF(:,1:explVar_idx(1)),...
          data(sogg).WM(:,1:explVar_idx(2))]; 
-     ris(sogg).beta = zeros(35,numROI);  
+     ris(sogg).beta = zeros(size(X,2),numROI);  
      ris(sogg).regrFilt = zeros(numROI,225);  
    for roi=1:1:numROI
        Y=ris(sogg).ROIfilt(roi,:)';
@@ -150,22 +150,22 @@ for sogg =1:1:numSoggetti
    pause(0.25)
 end
 %% task6 sogliatura hard utilizzando False Discovery Rate
-alpha0=0.05; %soglia del 5%
+alpha0=0.05; %soglia del 5
 alpha = zeros(numSoggetti,1);
 %correlazione totale
 for sogg=1:1:numSoggetti
     tri=triu(ris(sogg).signif);
-    vett_pval=tri(:);
-    pos_pval=vett_pval>0;
-    vett_pval=vett_pval(pos_pval==1);
-    vett_pval=sort(unique(vett_pval));
+    pval_corr=tri(:);
+    pos_pval=pval_corr>0;
+    pval_corr=pval_corr(pos_pval==1);
+    pval_corr=sort(unique(pval_corr));
     j=1;
-    temp=(j*alpha0)/length(vett_pval);
-    while vett_pval(j)<temp 
+    temp=(j*alpha0)/length(pval_corr);
+    while pval_corr(j)<temp 
         j=j+1;
-        temp=(j*alpha0)/length(vett_pval);
+        temp=(j*alpha0)/length(pval_corr);
     end
-    alpha(sogg)=vett_pval(j);
+    alpha(sogg)=pval_corr(j);
     mask=ris(sogg).signif<alpha(sogg);
     ris(sogg).signifThres=mask .* ris(sogg).signif;
     ris(sogg).FCThres=mask .* ris(sogg).FC;
@@ -173,21 +173,21 @@ end
 alpha_parz = zeros(numSoggetti,1);
 %correlazione totale
 for sogg=1:1:numSoggetti
-    tri=triu(ris(sogg).signif_parz);
-    vett_pval=tri(:);
-    pos_pval=vett_pval>0;
-    vett_pval=vett_pval(pos_pval==1);
-    vett_pval=sort(unique(vett_pval));
+    tri_parz=triu(ris(sogg).signif_parz);
+    pval_parz=tri_parz(:);
+    pos_pval=pval_parz>0;
+    pval_parz=pval_parz(pos_pval==1);
+    pval_parz=sort(unique(pval_parz));
     j=1;
-    temp=(j*alpha0)/length(vett_pval);
-    while vett_pval(j)<temp 
+    temp=(j*alpha0)/length(pval_parz);
+    while pval_parz(j)<temp 
         j=j+1;
-        temp=(j*alpha0)/length(vett_pval);
+        temp=(j*alpha0)/length(pval_parz);
     end
-    alpha_parz(sogg)=vett_pval(j);
-    mask=ris(sogg).signif_parz<alpha(sogg);
-    ris(sogg).signifThres_parz=mask .* ris(sogg).signif_parz;
-    ris(sogg).FCThres_parz=mask .* ris(sogg).FC_parz;
+    alpha_parz(sogg)=pval_parz(j);
+    mask_parz=ris(sogg).signif_parz<alpha_parz(sogg);
+    ris(sogg).signifThres_parz=mask_parz .* ris(sogg).signif_parz;
+    ris(sogg).FCThres_parz=mask_parz .* ris(sogg).FC_parz;
 end
 
 %% task 7 riporto risultati della correlazione
@@ -219,8 +219,8 @@ title('matrice p-values  corr parziale')
 FC_gruppo = zeros(size(ris(1).FC));
 FC_gruppo_parz = zeros(size(ris(1).FC_parz));
 for sogg = 1:1:numSoggetti
-    FC_gruppo = FC_gruppo + ris(sogg).FC;
-    FC_gruppo_parz = FC_gruppo_parz + ris(sogg).FC_parz;
+    FC_gruppo = FC_gruppo + ris(sogg).FCThres;
+    FC_gruppo_parz = FC_gruppo_parz + ris(sogg).FCThres_parz;
 end
 FC_gruppo = FC_gruppo/numSoggetti;
 FC_gruppo_parz = FC_gruppo_parz/numSoggetti;
@@ -242,7 +242,7 @@ imagesc(FC_gruppo_parz); colormap jet; colorbar
 title('Correlazione parziale')
 %% task 9 calcolo GE e CPL usando le funzioni date
 parfor sogg=1:1:numSoggetti
-    mask=ris(sogg).signifThres>=0;
+    mask=ris(sogg).FCThres>=0;
     inver_corr=1./(mask.*ris(sogg).FCThres);
     [D_corr, ~]=distance_wei(inver_corr);
     [ris(sogg).CPL_corr,ris(sogg).eff_corr,~]=charpath(D_corr,0,0);
